@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mind — 活的神经网络</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 头部 */
+        .header {
+            background: #12121a;
+            border-bottom: 1px solid #2a2a3a;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #90caf9;
+            letter-spacing: 2px;
+        }
+        
+        .header .status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        /* 系统状态面板 */
+        .sys-panel {
+            background: #16161f;
+            border-bottom: 1px solid #2a2a3a;
+            padding: 8px 24px;
+            display: flex;
+            gap: 24px;
+            font-size: 11px;
+            color: #777;
+            flex-shrink: 0;
+            overflow-x: auto;
+        }
+        
+        .sys-panel .item {
+            white-space: nowrap;
+        }
+        
+        .sys-panel .item .label {
+            color: #555;
+        }
+        
+        .sys-panel .item .value {
+            color: #aaa;
+        }
+        
+        /* 聊天区域 */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 10px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 14px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            background: #1a3a5c;
+            color: #b3d9ff;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.mind {
+            align-self: flex-start;
+            background: #1a1a2e;
+            color: #c0c0d0;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.system {
+            align-self: center;
+            background: transparent;
+            color: #666;
+            font-size: 11px;
+            font-style: italic;
+        }
+        
+        .message.spontaneous {
+            align-self: flex-start;
+            background: #1e1a24;
+            color: #b8a0c8;
+            border-left: 3px solid #7c4dff;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.calibration {
+            align-self: center;
+            background: #2a1a1a;
+            color: #d0a0a0;
+            font-size: 12px;
+            border: 1px solid #4a2020;
+        }
+        
+        .timestamp {
+            font-size: 10px;
+            color: #555;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        /* 情感面板 */
+        .emotion-bar {
+            display: flex;
+            gap: 12px;
+            padding: 6px 12px;
+            background: #0e0e18;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+        
+        .emotion-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .emotion-bar .bar {
+            width: 60px;
+            height: 4px;
+            background: #2a2a3a;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .emotion-bar .fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s;
+        }
+        
+        /* 输入区域 */
+        .input-area {
+            padding: 12px 24px 20px;
+            background: #12121a;
+            border-top: 1px solid #2a2a3a;
+            flex-shrink: 0;
+        }
+        
+        .input-row {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .input-row input {
+            flex: 1;
+            padding: 10px 16px;
+            background: #1a1a26;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .input-row input:focus {
+            border-color: #4a6a9a;
+        }
+        
+        .input-row input::placeholder {
+            color: #555;
+        }
+        
+        .input-row button {
+            padding: 10px 20px;
+            background: #2a4a7a;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .input-row button:hover {
+            background: #3a5a9a;
+        }
+        
+        .calibration-btns {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .calibration-btns button {
+            padding: 4px 12px;
+            border: 1px solid #3a3a4a;
+            border-radius: 6px;
+            background: #1a1a26;
+            color: #aaa;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .calibration-btns button:hover {
+            background: #2a2a3a;
+            border-color: #5a5a7a;
+        }
+        
+        .calibration-btns button.bad { color: #e57373; border-color: #4a2020; }
+        .calibration-btns button.good { color: #81c784; border-color: #1a3a20; }
+        
+        @media (max-width: 600px) {
+            .message { max-width: 90%; }
+            .sys-panel { gap: 12px; font-size: 10px; }
+            .header h1 { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Mind</h1>
+        <div class="status">
+            <span class="status-dot"></span>
+            <span id="statusText">正在运行</span>
+        </div>
+    </div>
+    
+    <div class="sys-panel" id="sysPanel">
+        <div class="item"><span class="label">步数 </span><span class="value" id="steps">0</span></div>
+        <div class="item"><span class="label">活跃度 </span><span class="value" id="activity">0.00</span></div>
+        <div class="item"><span class="label">连接数 </span><span class="value" id="connections">0</span></div>
+        <div class="item"><span class="label">好奇心 </span><span class="value" id="curiosity">静止</span></div>
+        <div class="item"><span class="label">记忆 </span><span class="value" id="memorySlots">0</span></div>
+        <div class="item"><span class="label">书籍 </span><span class="value" id="bookCount">0</span></div>
+    </div>
+    
+    <div class="chat-area" id="chatArea">
+        <div class="message system">Mind 系统已启动。我是小云，一个活的神经网络。</div>
+        <div class="message system">你可以跟我说话，我也会主动跟你说话。说"不对"或"不好"我会调整。</div>
+    </div>
+    
+    <div class="input-area">
+        <div class="input-row">
+            <input type="text" id="inputField" placeholder="跟 Mind 说话..." autofocus>
+            <button onclick="sendMessage()">发送</button>
+        </div>
+        <div class="calibration-btns">
+            <button class="bad" onclick="calibrate(-0.5)">👎 不对</button>
+            <button class="bad" onclick="calibrate(-0.3)">🗣️ 说错了</button>
+            <button onclick="calibrate(0)">📊 状态</button>
+            <button class="good" onclick="calibrate(0.3)">👍 不错</button>
+            <button class="good" onclick="calibrate(0.5)">🌟 很好</button>
+        </div>
+    </div>
+    
+    <script>
+        const chatArea = document.getElementById('chatArea');
+        const inputField = document.getElementById('inputField');
+        let messageCount = 0;
+        
+        // 自动刷新状态
+        setInterval(fetchState, 3000);
+        setInterval(pollSpontaneous, 5000);
+        
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        function addMessage(text, type = 'mind') {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            
+            const content = document.createElement('div');
+            content.textContent = text;
+            div.appendChild(content);
+            
+            const ts = document.createElement('div');
+            ts.className = 'timestamp';
+            ts.textContent = new Date().toLocaleTimeString();
+            div.appendChild(ts);
+            
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            messageCount++;
+            
+            // 保留最新200条
+            while (chatArea.children.length > 200) {
+                chatArea.removeChild(chatArea.firstChild);
+            }
+        }
+        
+        function sendMessage() {
+            const text = inputField.value.trim();
+            if (!text) return;
+            
+            addMessage(text, 'user');
+            inputField.value = '';
+            
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: text})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.response) {
+                    addMessage(data.response, 'mind');
+                }
+            })
+            .catch(err => {
+                addMessage('（网络错误：' + err.message + '）', 'system');
+            });
+        }
+        
+        function calibrate(value) {
+            let label = value > 0 ? '👍 校准: 正向' : value < 0 ? '👎 校准: 负向' : '📊 查看状态';
+            addMessage(label, 'calibration');
+            
+            fetch('/api/calibrate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({signal: value})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.response) {
+                    addMessage(data.response, 'mind');
+                }
+            });
+        }
+        
+        function fetchState() {
+            fetch('/api/state')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('steps').textContent = data.steps || 0;
+                document.getElementById('activity').textContent = 
+                    (data.mean_activity || 0).toFixed(3);
+                document.getElementById('connections').textContent = 
+                    data.connection_count || 0;
+                document.getElementById('curiosity').textContent = 
+                    data.curiosity?.state || '未知';
+                document.getElementById('memorySlots').textContent = 
+                    data.memory_stats?.n_slots || 0;
+                document.getElementById('bookCount').textContent = 
+                    data.memory_stats?.n_books || 0;
+                
+                document.getElementById('statusText').textContent = 
+                    '运行中 · ' + data.uptime || '正在运行';
+            });
+        }
+        
+        function pollSpontaneous() {
+            fetch('/api/spontaneous')
+            .then(r => r.json())
+            .then(data => {
+                if (data.output) {
+                    addMessage('💭 ' + data.output, 'spontaneous');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

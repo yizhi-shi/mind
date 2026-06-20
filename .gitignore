@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+*.swo
+data/
+夜无疆.txt
+.DS_Store

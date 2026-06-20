@@ -37,6 +37,7 @@ from core.ctrnn import CTRNN
 from memory.associative_memory import AssociativeMemory
 from core.sleep import SleepConsolidation
 from core.generator import SpontaneousGenerator
+from core.embedding import NgramEmbedder
 
 
 # ---- 神经调制（情绪系统） ----
@@ -201,6 +202,9 @@ class Mind:
             use_soc=True
         )
 
+        # 文本嵌入（纯 numpy，无需外部依赖）
+        self.embedder = NgramEmbedder(target_dim=n_neurons)
+
         # 联想记忆
         self.memory = AssociativeMemory(
             n_neurons=n_neurons,
@@ -212,7 +216,6 @@ class Mind:
         self.sleep_system = SleepConsolidation(self.ctrnn, self.memory)
         self.generator = SpontaneousGenerator(self.ctrnn, self.memory)
 
-        self.vocab_hash = {}
         self.text_dim = 64
 
         self.input_buffer = []
@@ -237,50 +240,8 @@ class Mind:
         self._try_load()
 
     def _text_to_pattern(self, text: str) -> np.ndarray:
-        """
-        将文本编码为CTRNN可以接收的输入模式
-        """
-        n = self.ctrnn.n
-        pattern = np.zeros(n)
-
-        # 词级哈希（把常见中英文标点替换为空格）
-        text_clean = re.sub(r'[，。、；：！？——""''（）【】\n]', ' ', text)
-        words = text_clean.split()
-        for i, word in enumerate(words[:10]):
-            word_len = len(word.encode('utf-8'))
-            first_char_val = ord(word[0]) / 65535.0 if word else 0
-            last_char_val = ord(word[-1]) / 65535.0 if word else 0
-
-            pos_base = (hash(word) % (n - 3))
-            if pos_base < 0:
-                pos_base = -pos_base
-            pos_base = pos_base % n
-
-            pattern[pos_base % n] += word_len * 0.02
-            pattern[(pos_base + 1) % n] += first_char_val * 0.3
-            pattern[(pos_base + 2) % n] += last_char_val * 0.3
-
-            word_hash = (hash(word) % 10000) / 10000.0
-            center = int(word_hash * (n - 1))
-            for offset in range(-5, 6):
-                pos = (center + offset) % n
-                pattern[pos] += 0.2 * np.exp(-(offset**2) / 4)
-
-        # 字符频率统计（辅助）
-        total_chars = len(text)
-        if total_chars > 0:
-            for ch in set(text):
-                if '\u4e00' <= ch <= '\u9fff':
-                    freq = text.count(ch) / total_chars
-                    idx = (hash(ch) % n) if hash(ch) >= 0 else (-hash(ch) % n)
-                    pattern[idx] += freq * 0.2
-
-        # 归一化
-        max_val = np.max(np.abs(pattern))
-        if max_val > 1.0:
-            pattern = pattern / max_val
-
-        return pattern
+        """将文本编码为 CTRNN 可接收的输入模式（n-gram 语义嵌入）"""
+        return self.embedder.encode(text)
 
     def _pattern_to_text_rough(self, pattern: np.ndarray) -> str:
         """从CTRNN状态中读出文本（联想记忆匹配）"""

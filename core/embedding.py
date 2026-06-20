@@ -34,11 +34,11 @@ class NgramEmbedder:
         # n-gram 范围：字符 1-gram 到 4-gram
         self.ngram_range = (1, 4)
 
-        # 不同 n-gram 的权重（长 n-gram 信息量更大，权重大）
-        self.ngram_weights = {1: 0.3, 2: 0.6, 3: 1.0, 4: 1.2}
+        # 不同 n-gram 的权重（短 n-gram 更容易共享）
+        self.ngram_weights = {1: 0.8, 2: 0.7, 3: 1.0, 4: 1.2}
 
         # 位置衰减系数（句首信息量大，越后面衰减）
-        self.position_decay = 0.992
+        self.position_decay = 0.985
 
         # 用于散列的随机向量（固定种子确保一致性）
         rng = np.random.RandomState(42)

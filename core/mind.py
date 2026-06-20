@@ -22,6 +22,7 @@ Mind 主控系统 — 整合所有核心模块
 
 import sys
 import os
+import re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
@@ -182,7 +183,12 @@ class Mind:
 
     def __init__(self,
                  n_neurons: int = 1000,
-                 save_dir: str = '/home/agent/.hermes/profiles/novel_writer/mind/data'):
+                 save_dir: str = None):
+
+        # 自动检测 save_dir（默认放在 mind/data/，与 core/、memory/ 同级）
+        if save_dir is None:
+            script_dir = os.path.dirname(os.path.abspath(__file__))  # core/
+            save_dir = os.path.join(os.path.dirname(script_dir), 'data')  # mind/data/
 
         self.save_dir = save_dir
         os.makedirs(save_dir, exist_ok=True)
@@ -237,8 +243,9 @@ class Mind:
         n = self.ctrnn.n
         pattern = np.zeros(n)
 
-        # 词级哈希
-        words = text.replace('，', ' ').replace('。', ' ').replace('——', ' ').split()
+        # 词级哈希（把常见中英文标点替换为空格）
+        text_clean = re.sub(r'[，。、；：！？——""''（）【】\n]', ' ', text)
+        words = text_clean.split()
         for i, word in enumerate(words[:10]):
             word_len = len(word.encode('utf-8'))
             first_char_val = ord(word[0]) / 65535.0 if word else 0

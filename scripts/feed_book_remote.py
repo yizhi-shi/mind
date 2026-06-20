@@ -120,8 +120,9 @@ def main():
 
     if not os.path.exists(args.book_path):
         print(f"❌ 文件不存在: {args.book_path}")
-        # 尝试从 /opt/data 找
-        alt = f'/opt/data/root/hermes-web-ui/hermes_data/profiles/novel_writer/mind/{os.path.basename(args.book_path)}'
+        # 尝试从脚本同级的 data 目录找
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        alt = os.path.join(os.path.dirname(script_dir), 'data', os.path.basename(args.book_path))
         if os.path.exists(alt):
             args.book_path = alt
             print(f"   已在备选路径找到: {alt}")

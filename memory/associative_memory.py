@@ -15,6 +15,7 @@
 import numpy as np
 import json
 import os
+import faiss
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from collections import deque
@@ -60,6 +61,19 @@ class AssociativeMemory:
         # 检索统计
         self.recall_count = 0
         self.hit_count = 0
+        
+        self.faiss_index = None
+        self.faiss_dim = n_neurons
+    
+    def _rebuild_faiss_index(self):
+        if len(self.slots) == 0:
+            self.faiss_index = None
+            return
+        
+        vectors = np.array([s['pattern_raw'] for s in self.slots]).astype(np.float32)
+        faiss.normalize_L2(vectors)
+        self.faiss_index = faiss.IndexFlatIP(self.faiss_dim)
+        self.faiss_index.add(vectors)
     
     def encode_pattern(self, data: np.ndarray) -> np.ndarray:
         """将浮点向量编码为二进制稀疏模式"""
@@ -100,6 +114,7 @@ class AssociativeMemory:
         # 2. 写入独立记忆槽
         slot = {
             'pattern': binary.copy(),
+            'pattern_raw': pattern.copy(),
             'content': content,
             'time': datetime.now().isoformat(),
             'source': source
@@ -110,36 +125,24 @@ class AssociativeMemory:
         if len(self.slots) > self.max_slots:
             self.slots.pop(0)
         
+        if len(self.slots) % 50 == 0:
+            self._rebuild_faiss_index()
+        
         return True
     
-    def recall(self, 
-               cue: np.ndarray, 
-               n_results: int = 3,
-               min_similarity: float = 0.1) -> List[Dict[str, Any]]:
-        """
-        用检索信号cue从联想记忆中检索
-        
-        参数:
-            cue: 检索信号（当前CTRNN状态）
-            n_results: 返回的最匹配数量
-            min_similarity: 最低相似度阈值
-        
-        返回:
-            按匹配度排序的记忆列表
-        """
+    def _recall_bruteforce(self, 
+                         cue: np.ndarray, 
+                         n_results: int = 3,
+                         min_similarity: float = 0.1) -> List[Dict[str, Any]]:
         self.recall_count += 1
         binary_cue = self.encode_pattern(cue)
         
         results = []
         
-        # 方法1：Willshaw直接检索
-        # W @ cue → 最活跃的记忆
         willshaw_activation = self.W @ binary_cue
         willshaw_similarity = np.mean(willshaw_activation > 0.5)
         
-        # 方法2：遍历独立记忆槽（更精确）
         for i, slot in enumerate(self.slots):
-            # 计算Hamming相似度
             match = np.mean(slot['pattern'] == binary_cue)
             
             if match > min_similarity:
@@ -152,22 +155,65 @@ class AssociativeMemory:
                     'source': slot['source']
                 })
         
-        # 按相似度排序
         results.sort(key=lambda x: x['similarity'], reverse=True)
         top_results = results[:n_results]
         
         if top_results:
             self.hit_count += 1
         
-        # 记录到检索历史
         self.recall_history.append({
-            'cue_snapshot': binary_cue[:100],  # 只存前100维做近似
+            'cue_snapshot': binary_cue[:100],
             'top_result': top_results[0]['content'][:50] if top_results else None,
             'n_results': len(results),
             'time': datetime.now().isoformat()
         })
         
         return top_results
+    
+    def recall(self, 
+               cue: np.ndarray, 
+               n_results: int = 3,
+               min_similarity: float = 0.1) -> List[Dict[str, Any]]:
+        self.recall_count += 1
+        
+        if self.faiss_index is not None and self.faiss_index.ntotal > 0:
+            query = cue.astype(np.float32).reshape(1, -1)
+            faiss.normalize_L2(query)
+            
+            k = min(n_results * 3, self.faiss_index.ntotal)
+            scores, indices = self.faiss_index.search(query, k)
+            
+            results = []
+            for score, idx in zip(scores[0], indices[0]):
+                if idx >= 0 and idx < len(self.slots):
+                    slot = self.slots[idx]
+                    results.append({
+                        'slot_id': idx,
+                        'pattern': slot['pattern'],
+                        'content': slot['content'],
+                        'similarity': float(max(0, score)),
+                        'time': slot['time'],
+                        'source': slot['source']
+                    })
+            
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            results = results[:n_results]
+            results = [r for r in results if r['similarity'] >= min_similarity]
+        else:
+            results = self._recall_bruteforce(cue, n_results, min_similarity)
+        
+        if results:
+            self.hit_count += 1
+        
+        if results:
+            self.recall_history.append({
+                'cue_snapshot': cue[:100],
+                'top_result': results[0]['content'][:50] if results else None,
+                'n_results': len(results),
+                'time': datetime.now().isoformat()
+            })
+        
+        return results
     
     def store_book(self, 
                    content: str, 
@@ -255,7 +301,6 @@ class AssociativeMemory:
         }
     
     def save(self, path: str, path_books: Optional[str] = None):
-        """保存记忆状态"""
         data = {
             'n': self.n,
             'max_slots': self.max_slots,
@@ -265,10 +310,11 @@ class AssociativeMemory:
             'W_vals': [],
             'slots': [{
                 'pattern': s['pattern'].tolist(),
+                'pattern_raw': s['pattern_raw'].tolist(),
                 'content': s['content'],
                 'time': s['time'],
                 'source': s['source']
-            } for s in self.slots[-1000:]],  # 只保留最近1000条
+            } for s in self.slots[-1000:]],
             'recall_count': self.recall_count,
             'hit_count': self.hit_count
         }
@@ -297,7 +343,6 @@ class AssociativeMemory:
                 json.dump(books_data, f)
     
     def load(self, path: str, path_books: Optional[str] = None):
-        """加载记忆状态"""
         with open(path, 'r') as f:
             data = json.load(f)
         
@@ -317,10 +362,13 @@ class AssociativeMemory:
         for s in data['slots']:
             self.slots.append({
                 'pattern': np.array(s['pattern']),
+                'pattern_raw': np.array(s.get('pattern_raw', s['pattern'])),
                 'content': s['content'],
                 'time': s['time'],
                 'source': s['source']
             })
+        
+        self._rebuild_faiss_index()
         
         # 加载书籍
         if path_books and os.path.exists(path_books):

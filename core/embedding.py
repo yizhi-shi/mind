@@ -38,7 +38,7 @@ class NgramEmbedder:
         self.ngram_weights = {1: 0.3, 2: 0.6, 3: 1.0, 4: 1.2}
 
         # 位置衰减系数（句首信息量大，越后面衰减）
-        self.position_decay = 0.98
+        self.position_decay = 0.992
 
         # 用于散列的随机向量（固定种子确保一致性）
         rng = np.random.RandomState(42)
@@ -141,6 +141,7 @@ if __name__ == '__main__':
         ("月薪七千", "工资七千块"),
         ("沈一舟骑车送餐", "外卖员沈一舟"),
         ("今天天气很好", "傅总的办公桌上有一杯咖啡"),
+        ("雨夜保时捷", "代码编译出错"),
     ]
 
     print("语义相似度测试:")
